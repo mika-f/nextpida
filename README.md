@@ -80,7 +80,7 @@ type RequestBodyAndQueryParams = GetRequest["api/v1/users"];
 type RequestBody = GetRequest["api/v1/users"].body;
 
 // request query params only
-type RequestQueryParams
+type RequestQueryParams = GetRequest["api/v1/users"].query;
 
 // response body
 type Response = GetResponse["api/v1/users"];
