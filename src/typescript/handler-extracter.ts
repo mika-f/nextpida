@@ -1,6 +1,6 @@
 import ts from "typescript";
 
-// template
+// supported types
 const DETECTING_REQUIRED_MEMBERS = [
   "GET",
   "HEAD",
@@ -42,6 +42,99 @@ const getDefaultExportNode = (
   return handler.declarations![0];
 };
 
+const createFullyResolvedTypeDeclaration = (
+  checker: ts.TypeChecker,
+  t: ts.Type
+): ts.TypeNode => {
+  if (t.flags === ts.TypeFlags.String) {
+    return ts.factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword);
+  }
+
+  if (t.flags === ts.TypeFlags.StringLiteral) {
+    const literal = <ts.StringLiteralType>t;
+
+    return ts.factory.createLiteralTypeNode(
+      ts.factory.createStringLiteral(literal.value)
+    );
+  }
+
+  if (t.flags === ts.TypeFlags.Number) {
+    return ts.factory.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword);
+  }
+
+  if (t.flags === ts.TypeFlags.NumberLiteral) {
+    const literal = <ts.NumberLiteralType>t;
+
+    return ts.factory.createLiteralTypeNode(
+      ts.factory.createNumericLiteral(literal.value)
+    );
+  }
+
+  if (t.flags === ts.TypeFlags.Boolean) {
+    return ts.factory.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword);
+  }
+
+  if (t.flags === ts.TypeFlags.BooleanLiteral) {
+    const literal = <ts.LiteralType>t;
+
+    return ts.factory.createLiteralTypeNode(ts.factory.createTrue());
+  }
+
+  if (t.flags === ts.TypeFlags.Union) {
+    const u = <ts.UnionType>t;
+    const types: ts.TypeNode[] = [];
+
+    for (const type of u.types) {
+      types.push(createFullyResolvedTypeDeclaration(checker, type));
+    }
+
+    return ts.factory.createUnionTypeNode(types);
+  }
+
+  const symbol = t.symbol;
+
+  // is present type is Array<T>?
+  if (symbol.escapedName.toString() === "Array") {
+    const array = <ts.TypeReference>t;
+    const infer = createFullyResolvedTypeDeclaration(
+      checker,
+      array.typeArguments![0]
+    );
+
+    return ts.factory.createArrayTypeNode(infer);
+  }
+
+  if (symbol.members) {
+    const members: ts.TypeElement[] = [];
+
+    symbol.members.forEach((member) => {
+      const decl = member.valueDeclaration!;
+
+      if (ts.isPropertySignature(decl)) {
+        const tt = checker.getTypeAtLocation(decl.type!);
+        const value = createFullyResolvedTypeDeclaration(checker, tt);
+
+        members.push(
+          ts.factory.createPropertySignature(
+            undefined,
+            ts.factory.createIdentifier(decl.name.getText()),
+            undefined,
+            value
+          )
+        );
+
+        return;
+      }
+
+      console.log(decl);
+    });
+
+    return ts.factory.createTypeLiteralNode(members);
+  }
+
+  return ts.factory.createTypeLiteralNode([]);
+};
+
 const createTypeDeclarationForUnknown = (
   name: string
 ): ts.TypeAliasDeclaration => {
@@ -53,22 +146,24 @@ const createTypeDeclarationForUnknown = (
   );
 };
 
-const createTypeDeclarationForExports = (
+const createTypeDeclarationForReferenceType = (
   checker: ts.TypeChecker,
-  node: ts.TypeNode
+  t: ts.ObjectType
 ): ts.TypeAliasDeclaration => {
-  const symbol = checker.getTypeAtLocation(node).symbol;
+  const symbol = t.symbol;
   const members: ts.TypeElement[] = [];
 
   symbol.members?.forEach((s) => {
     if (s.valueDeclaration && ts.isPropertySignature(s.valueDeclaration)) {
       if (s.valueDeclaration.type) {
+        const t = checker.getTypeAtLocation(s.valueDeclaration.type);
+
         members.push(
           ts.factory.createPropertySignature(
             undefined,
             ts.factory.createIdentifier(s.escapedName.toString()),
             undefined,
-            s.valueDeclaration.type
+            createFullyResolvedTypeDeclaration(checker, t)
           )
         );
       }
@@ -77,10 +172,46 @@ const createTypeDeclarationForExports = (
 
   return ts.factory.createTypeAliasDeclaration(
     undefined,
-    ts.factory.createIdentifier(node.getText()),
+    ts.factory.createIdentifier(""),
     undefined,
     ts.factory.createTypeLiteralNode(members)
   );
+};
+
+const createTypeDeclarationForUnionType = (
+  checker: ts.TypeChecker,
+  t: ts.UnionType
+): ts.TypeAliasDeclaration => {
+  const literals: ts.TypeNode[] = [];
+
+  for (const type of t.types) {
+    const decl = createFullyResolvedTypeDeclaration(checker, type);
+    literals.push(decl);
+  }
+
+  return ts.factory.createTypeAliasDeclaration(
+    undefined,
+    ts.factory.createIdentifier(""),
+    undefined,
+    ts.factory.createUnionTypeNode(literals)
+  );
+};
+
+const createTypeDeclarationForExports = (
+  checker: ts.TypeChecker,
+  node: ts.TypeNode
+): ts.TypeAliasDeclaration => {
+  const t = checker.getTypeAtLocation(node);
+
+  if (t.flags === ts.TypeFlags.Union) {
+    return createTypeDeclarationForUnionType(checker, <ts.UnionType>t);
+  }
+
+  if (t.flags === ts.TypeFlags.Object) {
+    return createTypeDeclarationForReferenceType(checker, <ts.ObjectType>t);
+  }
+
+  throw new Error("");
 };
 
 const getStringifiedTypeDefinitionFor = (
@@ -201,15 +332,16 @@ const getResolvedSatisfiesHandler = (
       }
 
       if (ts.isCallExpression(node)) {
-        return node.arguments.map(isHandlerIsSatisfiesFunction)[0];
+        return node.arguments.map(isHandlerIsSatisfiesFunction).find((w) => w);
       }
 
       return undefined;
     };
 
-    const signatures = handler.initializer.arguments.map(
-      isHandlerIsSatisfiesFunction
-    )[0];
+    const signatures = handler.initializer.arguments
+      .map(isHandlerIsSatisfiesFunction)
+      .find((w) => w);
+
     if (signatures) {
       return [name as HttpMethods, ...signatures];
     }
