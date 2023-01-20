@@ -15,7 +15,7 @@ $ yarn add @natsuneko-laboratory/nextpida-handler-types --dev
 $ yarn add @natsuneko-laboratory/nextpida-method-handler
 ```
 
-## Usage
+## Generate Type Definitions
 
 ```bash
 # build
@@ -63,6 +63,32 @@ You must:
   - If it is not replaced and remains `any`, no type definitions is generated for the request body
 - Request **additional** query params type must be replaced in `query: Partial<{ [key: string]: string | string[]; }>` of `NextApiRequest`
   - If it is not replaced and remains `Partial<{ [key: string]: string | string[]; }>`, no **additional** type definitions is generated for the request query params
+
+## Import Types
+
+By default, nextpida write type definition file into `lib/$apis.ts`
+
+```typescript
+import type { GetRequest, PostRequest } from "lib/$apis";
+
+// GET /api/v1/users request and response typings
+
+// full typing
+type RequestBodyAndQueryParams = GetRequest["api/v1/users"];
+
+// request body only
+type RequestBody = GetRequest["api/v1/users"].body;
+
+// request query params only
+type RequestQueryParams
+
+// response body
+type Response = GetResponse["api/v1/users"];
+
+
+// POST /api/v1/users request and response typings
+type Response = PostResponse["api/v1/users"];
+```
 
 ## License
 
