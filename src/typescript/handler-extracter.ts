@@ -42,7 +42,66 @@ const getDefaultExportNode = (
   return handler.declarations![0];
 };
 
-const createFullyResolvedTypeDeclaration = (
+const createFullyResolvedTypeDeclarationBySymbol = (
+  checker: ts.TypeChecker,
+  s: ts.Symbol
+): ts.TypeNode => {
+  if (s.members && s.members.size) {
+    const members: ts.TypeElement[] = [];
+
+    s.members.forEach((member) => {
+      const decl = member.valueDeclaration!;
+
+      if (ts.isPropertySignature(decl)) {
+        const tt = checker.getTypeAtLocation(decl.type!);
+        const value = createFullyResolvedTypeDeclarationByType(checker, tt);
+
+        members.push(
+          ts.factory.createPropertySignature(
+            undefined,
+            ts.factory.createIdentifier(decl.name.getText()),
+            undefined,
+            value
+          )
+        );
+
+        return;
+      }
+    });
+
+    return ts.factory.createTypeLiteralNode(members);
+  }
+
+  if (s.valueDeclaration) {
+    const decl = s.valueDeclaration;
+
+    if (ts.isPropertySignature(decl)) {
+      const tt = checker.getTypeAtLocation(decl.type!);
+      const value = createFullyResolvedTypeDeclarationByType(checker, tt);
+
+      return value;
+    }
+  }
+
+  if (s.declarations) {
+    const decl = s.declarations[0];
+    console.log(decl.getFullText());
+
+    if (ts.isPropertyAssignment(decl)) {
+      const expr = decl.initializer;
+
+      console.log(expr);
+    }
+
+    if (ts.isMappedTypeNode(decl)) {
+      const expr = decl.type;
+    }
+  }
+
+  return ts.factory.createTypeLiteralNode([]);
+};
+
+const createFullyResolvedTypeDeclarationByType = (
   checker: ts.TypeChecker,
   t: ts.Type
 ): ts.TypeNode => {
@@ -85,18 +144,18 @@ const createFullyResolvedTypeDeclaration = (
     const types: ts.TypeNode[] = [];
 
     for (const type of u.types) {
-      types.push(createFullyResolvedTypeDeclaration(checker, type));
+      types.push(createFullyResolvedTypeDeclarationByType(checker, type));
     }
 
     return ts.factory.createUnionTypeNode(types);
   }
 
-  const symbol = t.symbol;
+  const s = t.symbol;
 
   // is present type is Array<T>?
-  if (symbol.escapedName.toString() === "Array") {
+  if (s.escapedName.toString() === "Array") {
     const array = <ts.TypeReference>t;
-    const infer = createFullyResolvedTypeDeclaration(
+    const infer = createFullyResolvedTypeDeclarationByType(
       checker,
       array.typeArguments![0]
     );
@@ -104,35 +163,7 @@ const createFullyResolvedTypeDeclaration = (
     return ts.factory.createArrayTypeNode(infer);
   }
 
-  if (symbol.members) {
-    const members: ts.TypeElement[] = [];
-
-    symbol.members.forEach((member) => {
-      const decl = member.valueDeclaration!;
-
-      if (ts.isPropertySignature(decl)) {
-        const tt = checker.getTypeAtLocation(decl.type!);
-        const value = createFullyResolvedTypeDeclaration(checker, tt);
-
-        members.push(
-          ts.factory.createPropertySignature(
-            undefined,
-            ts.factory.createIdentifier(decl.name.getText()),
-            undefined,
-            value
-          )
-        );
-
-        return;
-      }
-
-      console.log(decl);
-    });
-
-    return ts.factory.createTypeLiteralNode(members);
-  }
-
-  return ts.factory.createTypeLiteralNode([]);
+  return createFullyResolvedTypeDeclarationBySymbol(checker, s);
 };
 
 const createTypeDeclarationForUnknown = (
@@ -163,7 +194,7 @@ const createTypeDeclarationForReferenceType = (
             undefined,
             ts.factory.createIdentifier(s.escapedName.toString()),
             undefined,
-            createFullyResolvedTypeDeclaration(checker, t)
+            createFullyResolvedTypeDeclarationByType(checker, t)
           )
         );
       }
@@ -185,7 +216,7 @@ const createTypeDeclarationForUnionType = (
   const literals: ts.TypeNode[] = [];
 
   for (const type of t.types) {
-    const decl = createFullyResolvedTypeDeclaration(checker, type);
+    const decl = createFullyResolvedTypeDeclarationByType(checker, type);
     literals.push(decl);
   }
 
@@ -214,7 +245,7 @@ const createTypeDeclarationForExports = (
   throw new Error("");
 };
 
-const getStringifiedTypeDefinitionFor = (
+const getResponseTypeDefinition = (
   checker: ts.TypeChecker,
   t: ts.TypeReferenceNode
 ): ts.TypeAliasDeclaration => {
@@ -237,6 +268,55 @@ const getStringifiedTypeDefinitionFor = (
   return createTypeDeclarationForUnknown("");
 };
 
+const getRequestTypeDefinition = (
+  checker: ts.TypeChecker,
+  props: [ts.Symbol, ts.Symbol] | [undefined, undefined]
+): ts.TypeAliasDeclaration => {
+  const [bs, qs] = props;
+
+  let unknown = ts.factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword);
+  let bodyNode: ts.TypeNode | undefined = undefined;
+  let queryNode: ts.TypeNode | undefined = undefined;
+
+  if (bs?.valueDeclaration && ts.isPropertySignature(bs.valueDeclaration)) {
+    const type = bs.valueDeclaration.type;
+
+    if (type && ts.isTypeReferenceNode(type)) {
+      const t = checker.getTypeAtLocation(type);
+      bodyNode = createFullyResolvedTypeDeclarationByType(checker, t);
+    }
+  }
+
+  if (qs?.valueDeclaration && ts.isPropertySignature(qs.valueDeclaration)) {
+    const type = qs.valueDeclaration.type;
+
+    if (type && ts.isTypeReferenceNode(type)) {
+      const t = checker.getTypeAtLocation(type);
+      queryNode = createFullyResolvedTypeDeclarationByType(checker, t);
+    }
+  }
+
+  return ts.factory.createTypeAliasDeclaration(
+    undefined,
+    ts.factory.createIdentifier(""),
+    undefined,
+    ts.factory.createTypeLiteralNode([
+      ts.factory.createPropertySignature(
+        undefined,
+        ts.factory.createIdentifier("body"),
+        undefined,
+        bodyNode ?? unknown
+      ),
+      ts.factory.createPropertySignature(
+        undefined,
+        ts.factory.createIdentifier("query"),
+        undefined,
+        queryNode ?? unknown
+      ),
+    ])
+  );
+};
+
 const isParameterTypeInheritFrom = (
   checker: ts.TypeChecker,
   parameter: ts.ParameterDeclaration,
@@ -256,23 +336,41 @@ const isParameterTypeInheritFrom = (
 
   const [module, name] = type.split("/");
   if (symbol?.name !== name || !symbol.declarations) {
-    // TODO: Support to inheritance
+    // check the type is replaced `body` and/or `query` in NextApiRequest?
+    if (symbol && type === "next/NextApiRequest") {
+      const t = checker.getTypeFromTypeNode(parameter.type);
+
+      if (t.flags === ts.TypeFlags.Intersection) {
+        const it = <ts.IntersectionType>t;
+
+        const properties = it.types.flatMap((w) => w.getProperties());
+        const bs = properties.find((w) => w.escapedName === "body")!;
+        const qs = properties.find((w) => w.escapedName === "query")!;
+
+        return getRequestTypeDefinition(checker, [bs, qs]);
+      }
+    }
+
     return createTypeDeclarationForUnknown("");
   }
 
-  let node: ts.Node = symbol.declarations[0];
-  while (node.parent !== undefined) {
-    if (ts.isImportDeclaration(node)) {
-      const specifier = node.moduleSpecifier;
-      if (ts.isStringLiteral(specifier) && specifier.text === module) {
-        return getStringifiedTypeDefinitionFor(checker, parameter.type);
+  if (type === "next/NextApiResponse") {
+    let node: ts.Node = symbol.declarations[0];
+    while (node.parent !== undefined) {
+      if (ts.isImportDeclaration(node)) {
+        const specifier = node.moduleSpecifier;
+        if (ts.isStringLiteral(specifier) && specifier.text === module) {
+          return getResponseTypeDefinition(checker, parameter.type);
+        }
+      } else {
+        node = node.parent;
       }
-    } else {
-      node = node.parent;
     }
   }
 
-  return createTypeDeclarationForUnknown("");
+  return type === "next/NextApiRequest"
+    ? getRequestTypeDefinition(checker, [undefined, undefined])
+    : createTypeDeclarationForUnknown("");
 };
 
 /**
