@@ -12,6 +12,7 @@ const write = (args: WriteArgs) => {
   if (fs.existsSync(dist)) {
     const cache = fs.readFileSync(dist, "utf8");
     if (cache.trim() === args.content.trim()) {
+      console.log(`${dist} is already up-to-date`);
       return;
     }
   }
