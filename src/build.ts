@@ -9,40 +9,95 @@ import { extract as extractRoute } from "./typescript/route-extracter";
 
 import type { Configuration } from "./config";
 
+const updatePropertySignature = (
+  signature: ts.PropertySignature,
+  queryTypes: ts.PropertySignature[]
+): ts.PropertySignature => {
+  if (signature.type!.kind === ts.SyntaxKind.UnknownKeyword) {
+    return ts.factory.updatePropertySignature(
+      signature,
+      undefined,
+      ts.factory.createIdentifier("query"),
+      undefined,
+      ts.factory.createTypeLiteralNode(queryTypes)
+    );
+  }
+
+  const tl = signature.type as ts.TypeLiteralNode;
+  const inject = ts.factory.updateTypeLiteralNode(
+    tl,
+    ts.factory.createNodeArray([...tl.members, ...queryTypes])
+  );
+
+  return ts.factory.updatePropertySignature(
+    signature,
+    undefined,
+    ts.factory.createIdentifier("query"),
+    undefined,
+    inject
+  );
+};
+
+const updateParamsTypeDeclaration = (
+  t: ts.TypeLiteralNode,
+  queryTypes: ts.PropertySignature[]
+): ts.TypeNode => {
+  // safety cast
+  const properties = t.members.filter((w) =>
+    ts.isPropertySignature(w)
+  ) as ts.PropertySignature[];
+  const body = properties.find(
+    (w) => (w.name as ts.Identifier).escapedText === "body"
+  )!;
+  const query = properties.find(
+    (w) => (w.name as ts.Identifier).escapedText === "query"
+  )!;
+
+  const newQuery = updatePropertySignature(query, queryTypes);
+
+  return ts.factory.updateTypeLiteralNode(
+    t,
+    ts.factory.createNodeArray([body, newQuery])
+  );
+};
+
 const createTypeDeclaration = (
-  m: string,
-  r: string,
-  v: string,
+  method: string,
+  route: string,
+  query: ReturnType<typeof extractRoute>["query"],
+  verb: "Request" | "Response",
   t: ts.TypeAliasDeclaration,
-  w: (...nodes: ts.Node[]) => string
+  writer: (...nodes: ts.Node[]) => string
 ): string => {
   const typeDecl = ts.factory.updateTypeAliasDeclaration(
     t,
     undefined,
-    ts.factory.createIdentifier(getTypeName(r, m, v)),
+    ts.factory.createIdentifier(getTypeName(route, method, verb)),
     undefined,
-    t.type
+    verb === "Request"
+      ? updateParamsTypeDeclaration(t.type as ts.TypeLiteralNode, query)
+      : t.type
   );
 
   const signature = ts.factory.createPropertySignature(
     undefined,
-    ts.factory.createStringLiteral(r),
+    ts.factory.createStringLiteral(route),
     undefined,
     ts.factory.createTypeReferenceNode(
-      ts.factory.createIdentifier(getTypeName(r, m, v)),
+      ts.factory.createIdentifier(getTypeName(route, method, verb)),
       undefined
     )
   );
 
   const decl = ts.factory.createInterfaceDeclaration(
     [ts.factory.createToken(ts.SyntaxKind.ExportKeyword)],
-    ts.factory.createIdentifier(`${m}${v}`),
+    ts.factory.createIdentifier(`${method}${verb}`),
     undefined,
     undefined,
     [signature]
   );
 
-  return w(typeDecl, decl);
+  return writer(typeDecl, decl);
 };
 
 const build = (args: Configuration): string => {
@@ -78,6 +133,7 @@ const build = (args: Configuration): string => {
           createTypeDeclaration(
             camelcase(method),
             route.path,
+            route.query,
             "Request",
             req,
             write
@@ -88,6 +144,7 @@ const build = (args: Configuration): string => {
           createTypeDeclaration(
             camelcase(method),
             route.path,
+            route.query,
             "Response",
             res,
             write

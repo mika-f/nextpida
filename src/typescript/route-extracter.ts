@@ -16,14 +16,9 @@ type ExtractArgs = {
   route: string;
 };
 
-type RouteArg = {
-  name: string;
-  type: { name: string; isArray: boolean; isOptional: boolean };
-};
-
 type Route = {
   path: string;
-  query: RouteArg[];
+  query: ts.PropertySignature[];
 };
 
 const getRoutePath = (args: ExtractArgs): string => {
@@ -35,29 +30,47 @@ const getRoutePath = (args: ExtractArgs): string => {
   return normalize(path.join(r.dir, r.name));
 };
 
-const getRouteArgWithType = (segment: string): RouteArg | undefined => {
+const getRouteArgWithType = (
+  segment: string
+): ts.PropertySignature | undefined => {
   const match = ROUTE_REGEXES.DYNAMIC_ROUTE.exec(segment);
 
   if (match && match.groups) {
     const name = match.groups["arg"]!;
-    return {
-      name,
-      type: { name, isArray: false, isOptional: false },
-    };
+    return ts.factory.createPropertySignature(
+      undefined,
+      ts.factory.createIdentifier(name),
+      undefined,
+      ts.factory.createUnionTypeNode([
+        ts.factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+        ts.factory.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword),
+      ])
+    );
   }
 
   return undefined;
 };
 
-const getRouteArgWithArrayType = (segment: string): RouteArg | undefined => {
+const getRouteArgWithArrayType = (
+  segment: string
+): ts.PropertySignature | undefined => {
   const match = ROUTE_REGEXES.CATCH_ALL_ROUTE.exec(segment);
 
   if (match && match.groups) {
     const name = match.groups["arg"]!;
-    return {
-      name,
-      type: { name, isArray: true, isOptional: false },
-    };
+    return ts.factory.createPropertySignature(
+      undefined,
+      ts.factory.createIdentifier(name),
+      undefined,
+      ts.factory.createArrayTypeNode(
+        ts.factory.createParenthesizedType(
+          ts.factory.createUnionTypeNode([
+            ts.factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+            ts.factory.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword),
+          ])
+        )
+      )
+    );
   }
 
   return undefined;
@@ -65,21 +78,30 @@ const getRouteArgWithArrayType = (segment: string): RouteArg | undefined => {
 
 const getRouteArgWithOptionalArrayType = (
   segment: string
-): RouteArg | undefined => {
+): ts.PropertySignature | undefined => {
   const match = ROUTE_REGEXES.OPTIONAL_CATCH_ALL_ROUTE.exec(segment);
 
   if (match && match.groups) {
     const name = match.groups["arg"]!;
-    return {
-      name,
-      type: { name, isArray: true, isOptional: true },
-    };
+    return ts.factory.createPropertySignature(
+      undefined,
+      ts.factory.createIdentifier(name),
+      ts.factory.createToken(ts.SyntaxKind.QuestionToken),
+      ts.factory.createArrayTypeNode(
+        ts.factory.createParenthesizedType(
+          ts.factory.createUnionTypeNode([
+            ts.factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+            ts.factory.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword),
+          ])
+        )
+      )
+    );
   }
 
   return undefined;
 };
 
-const getRouteArg = (segment: string): RouteArg | undefined => {
+const getRouteArg = (segment: string): ts.PropertySignature | undefined => {
   return (
     getRouteArgWithType(segment) ||
     getRouteArgWithArrayType(segment) ||
@@ -90,7 +112,7 @@ const getRouteArg = (segment: string): RouteArg | undefined => {
 const extract = (args: ExtractArgs): Route => {
   const route = getRoutePath(args);
   const segments = route.split("/");
-  const query: RouteArg[] = [];
+  const query: ts.PropertySignature[] = [];
 
   for (const segment of segments) {
     const arg = getRouteArg(segment);
