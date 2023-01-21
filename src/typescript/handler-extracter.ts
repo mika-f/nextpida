@@ -23,6 +23,27 @@ type TypedApiHandler = [TypedRequestHandler, TypedResponseHandler];
 
 type TypedApiHandlerWithMethod = [HttpMethods, ...TypedApiHandler];
 
+/**
+ * unsafe marker
+ *
+ * @example
+ *
+ * const t = checker.getTypeAtLocation(node);
+ *
+ * return __unsafe__(() => {
+ *  // unsafe code
+ * }) ?? {
+ *  return ...
+ * }
+ */
+const __unsafe__ = <T>(func: () => T): T | undefined => {
+  try {
+    return func();
+  } catch (err) {
+    return undefined;
+  }
+};
+
 const getDefaultExportNode = (
   source: ts.SourceFile,
   checker: ts.TypeChecker
@@ -83,21 +104,6 @@ const createFullyResolvedTypeDeclarationBySymbol = (
     }
   }
 
-  if (s.declarations) {
-    const decl = s.declarations[0];
-    console.log(decl.getFullText());
-
-    if (ts.isPropertyAssignment(decl)) {
-      const expr = decl.initializer;
-
-      console.log(expr);
-    }
-
-    if (ts.isMappedTypeNode(decl)) {
-      const expr = decl.type;
-    }
-  }
-
   return ts.factory.createTypeLiteralNode([]);
 };
 
@@ -137,6 +143,10 @@ const createFullyResolvedTypeDeclarationByType = (
     const literal = <ts.LiteralType>t;
 
     return ts.factory.createLiteralTypeNode(ts.factory.createTrue());
+  }
+
+  if (t.flags === ts.TypeFlags.Undefined) {
+    return ts.factory.createKeywordTypeNode(ts.SyntaxKind.UndefinedKeyword);
   }
 
   if (t.flags === ts.TypeFlags.Union) {
@@ -270,32 +280,67 @@ const getResponseTypeDefinition = (
 
 const getRequestTypeDefinition = (
   checker: ts.TypeChecker,
-  props: [ts.Symbol, ts.Symbol] | [undefined, undefined]
+  symbol?: ts.Symbol
+): ts.TypeNode => {
+  const unknown = ts.factory.createKeywordTypeNode(
+    ts.SyntaxKind.UnknownKeyword
+  );
+
+  if (symbol) {
+    if (
+      symbol.valueDeclaration &&
+      ts.isPropertySignature(symbol.valueDeclaration)
+    ) {
+      const type = symbol.valueDeclaration.type;
+
+      if (type && ts.isTypeReferenceNode(type)) {
+        const t = checker.getTypeAtLocation(type);
+
+        if (t.flags === ts.TypeFlags.Any) {
+          return unknown;
+        }
+
+        return (
+          __unsafe__(() => {
+            // working with TypeScript 4.9.4
+            // `at` includes **resolved** type properties
+            const at = (t as any).members as Map<string, ts.Symbol>;
+            const members: ts.PropertySignature[] = [];
+
+            at.forEach((val, key) => {
+              checker.getTypeOfSymbolAtLocation(val, type);
+
+              const infer: ts.Type = (val as any).type;
+              const t = createFullyResolvedTypeDeclarationByType(
+                checker,
+                infer
+              );
+
+              const p = ts.factory.createPropertySignature(
+                undefined,
+                ts.factory.createIdentifier(key),
+                undefined,
+                t
+              );
+
+              members.push(p);
+            });
+
+            return ts.factory.createTypeLiteralNode(members);
+          }) ?? createFullyResolvedTypeDeclarationByType(checker, t)
+        );
+      }
+    }
+  }
+
+  return unknown;
+};
+
+const getRequestTypeDefinitions = (
+  checker: ts.TypeChecker,
+  bodySymbol?: ts.Symbol,
+  querySymbol?: ts.Symbol
 ): ts.TypeAliasDeclaration => {
-  const [bs, qs] = props;
-
-  let unknown = ts.factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword);
-  let bodyNode: ts.TypeNode | undefined = undefined;
-  let queryNode: ts.TypeNode | undefined = undefined;
-
-  if (bs?.valueDeclaration && ts.isPropertySignature(bs.valueDeclaration)) {
-    const type = bs.valueDeclaration.type;
-
-    if (type && ts.isTypeReferenceNode(type)) {
-      const t = checker.getTypeAtLocation(type);
-      bodyNode = createFullyResolvedTypeDeclarationByType(checker, t);
-    }
-  }
-
-  if (qs?.valueDeclaration && ts.isPropertySignature(qs.valueDeclaration)) {
-    const type = qs.valueDeclaration.type;
-
-    if (type && ts.isTypeReferenceNode(type)) {
-      const t = checker.getTypeAtLocation(type);
-      queryNode = createFullyResolvedTypeDeclarationByType(checker, t);
-    }
-  }
-
   return ts.factory.createTypeAliasDeclaration(
     undefined,
     ts.factory.createIdentifier(""),
@@ -305,13 +350,13 @@ const getRequestTypeDefinition = (
         undefined,
         ts.factory.createIdentifier("body"),
         undefined,
-        bodyNode ?? unknown
+        getRequestTypeDefinition(checker, bodySymbol)
       ),
       ts.factory.createPropertySignature(
         undefined,
         ts.factory.createIdentifier("query"),
         undefined,
-        queryNode ?? unknown
+        getRequestTypeDefinition(checker, querySymbol)
       ),
     ])
   );
@@ -347,7 +392,7 @@ const isParameterTypeInheritFrom = (
         const bs = properties.find((w) => w.escapedName === "body")!;
         const qs = properties.find((w) => w.escapedName === "query")!;
 
-        return getRequestTypeDefinition(checker, [bs, qs]);
+        return getRequestTypeDefinitions(checker, bs, qs);
       }
     }
 
@@ -369,7 +414,7 @@ const isParameterTypeInheritFrom = (
   }
 
   return type === "next/NextApiRequest"
-    ? getRequestTypeDefinition(checker, [undefined, undefined])
+    ? getRequestTypeDefinitions(checker)
     : createTypeDeclarationForUnknown("");
 };
 
