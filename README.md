@@ -93,7 +93,6 @@ type Response = PostResponse["api/v1/users"];
 ## Known Issues
 
 - if optional parameter is used, `undefined` is not given
-- query parameters provided by file system are not injected
 
 ## License
 
