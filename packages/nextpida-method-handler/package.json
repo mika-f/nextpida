@@ -1,6 +1,6 @@
 {
   "name": "@natsuneko-laboratory/nextpida-method-handler",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript friendly apis path generator for Next.js",
   "license": "MIT",
   "author": "Natsuneko",
