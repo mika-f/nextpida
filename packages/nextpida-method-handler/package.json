@@ -1,0 +1,35 @@
+{
+  "name": "@natsuneko-laboratory/nextpida-method-handler",
+  "version": "1.0.0",
+  "description": "TypeScript friendly apis path generator for Next.js",
+  "license": "MIT",
+  "author": "Natsuneko",
+  "exports": {
+    "import": "./dist/esm/index.js",
+    "require": "./dist/cjs/index.js",
+    "node": "./dist/esm/index.js",
+    "default": "./dist/cjs/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prebuild": "rimraf ./dist",
+    "build": "tsc --project tsconfig.cjs.json && tsc --project tsconfig.esm.json"
+  },
+  "types": "./dist/esm/index.d.ts",
+  "peerDependencies": {
+    "next": "^13.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.18",
+    "next": "^13.1.4",
+    "typescript": "^4.9.4"
+  },
+  "keywords": [
+    "api",
+    "nextjs",
+    "path",
+    "typescript"
+  ]
+}

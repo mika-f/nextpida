@@ -13,7 +13,7 @@ const DETECTING_REQUIRED_MEMBERS = [
   "PATCH",
 ] as const;
 
-type HttpMethods = typeof DETECTING_REQUIRED_MEMBERS[number];
+type HttpMethods = (typeof DETECTING_REQUIRED_MEMBERS)[number];
 
 type TypedRequestHandler = ts.TypeAliasDeclaration;
 

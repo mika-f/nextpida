@@ -1,0 +1,43 @@
+{
+  "name": "@natsuneko-laboratory/nextpida",
+  "version": "1.0.0",
+  "description": "TypeScript friendly apis path generator for Next.js",
+  "license": "MIT",
+  "author": "Natsuneko",
+  "type": "module",
+  "bin": "bin/index.js",
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "prebuild": "rimraf ./dist",
+    "build": "tsc",
+    "nextpida:js": "node ./bin/index.js",
+    "nextpida:ts": "ts-node --esm --compiler ttypescript --require tsconfig-paths/register ./bin/index.ts"
+  },
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "minimist": "^1.2.7",
+    "normalize-path": "^3.0.0",
+    "uppercamelcase": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.2",
+    "@types/node": "^18.11.18",
+    "@types/normalize-path": "^3.0.0",
+    "@types/uppercamelcase": "^3.0.0",
+    "next": "^13.1.2",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.1.2",
+    "ttypescript": "^1.5.15",
+    "typescript": "^4.9.4",
+    "typescript-transform-extensions": "^1.0.1"
+  },
+  "keywords": [
+    "api",
+    "nextjs",
+    "path",
+    "typescript"
+  ]
+}

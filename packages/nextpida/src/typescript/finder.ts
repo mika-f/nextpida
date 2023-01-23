@@ -1,4 +1,4 @@
-import type { Configuration } from "../config";
+import type { Configuration } from "../config.js";
 import type { Program } from "typescript";
 
 type FindProgramArgs = {

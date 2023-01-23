@@ -1,6 +1,6 @@
 import ts from "typescript";
 
-import type { Configuration } from "../config";
+import type { Configuration } from "../config.js";
 
 const createProgram = (args: Configuration) => {
   const tsconfig = ts.findConfigFile(

@@ -1,10 +1,10 @@
 import minimist from "minimist";
 
-import { build } from "./build";
-import { getConfigValues } from "./config";
-import { __require__ } from "./require";
-import { watch } from "./watch";
-import { write } from "./write";
+import { build } from "./build.js";
+import { getConfigValues } from "./config.js";
+import { __require__ } from "./require.js";
+import { watch } from "./watch.js";
+import { write } from "./write.js";
 
 const run = async (args: string[]) => {
   const argv = minimist(args, {

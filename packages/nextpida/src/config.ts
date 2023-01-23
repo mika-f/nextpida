@@ -3,7 +3,7 @@ import path from "path";
 
 import normalize from "normalize-path";
 
-import { __require__ } from "./require";
+import { __require__ } from "./require.js";
 
 type Configuration = {
   input: string;

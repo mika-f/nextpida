@@ -1,13 +1,13 @@
 import ts from "typescript";
 import camelcase from "uppercamelcase";
 
-import { findPrograms } from "./typescript/finder";
-import { extract as extractHandlers } from "./typescript/handler-extracter";
-import { getTypeName } from "./typescript/naming";
-import { createProgram } from "./typescript/program";
-import { extract as extractRoute } from "./typescript/route-extracter";
+import { findPrograms } from "./typescript/finder.js";
+import { extract as extractHandlers } from "./typescript/handler-extracter.js";
+import { getTypeName } from "./typescript/naming.js";
+import { createProgram } from "./typescript/program.js";
+import { extract as extractRoute } from "./typescript/route-extracter.js";
 
-import type { Configuration } from "./config";
+import type { Configuration } from "./config.js";
 
 const updatePropertySignature = (
   signature: ts.PropertySignature,

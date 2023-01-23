@@ -30,7 +30,7 @@ $ yarn run nextpida --input ./src/
 
 ## Type Detection
 
-Nextpida generates routes and type definitions for a default exported handler with a type definition of the following form:
+Nextpida generates routes and type definitions for a default exported handler with a typedefinition of the following form:
 
 ```typescript
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -66,8 +66,6 @@ You must:
   - If it is not replaced and remains `any`, no type definitions is generated for the request body
 - Request **additional** query params type must be replaced in `query: Partial<{ [key: string]: string | string[]; }>` of `NextApiRequest`
   - If it is not replaced and remains `Partial<{ [key: string]: string | string[]; }>`, no **additional** type definitions is generated for the request query params
-
-You can use official provided type definitions via `@natsuneko-laboratory/nextpida-handler-types`.
 
 ## Import Types
 
