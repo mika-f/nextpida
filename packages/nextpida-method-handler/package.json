@@ -4,6 +4,14 @@
   "description": "TypeScript friendly apis path generator for Next.js",
   "license": "MIT",
   "author": "Natsuneko",
+  "homepage": "https://github.com/mika-f/nextpida",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mika-f/nextpida"
+  },
+  "bugs": {
+    "url": "https://github.com/mika-f/nextpida/issues"
+  },
   "exports": {
     "import": "./dist/esm/index.js",
     "require": "./dist/cjs/index.js",
